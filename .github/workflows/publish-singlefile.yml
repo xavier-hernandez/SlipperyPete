@@ -45,14 +45,19 @@ jobs:
         shell: pwsh
         run: Remove-Item artifacts\${{ matrix.rid }}\*.pdb -Force
 
-      - name: Zip artifact
+      - name: Zip artifact (Linux)
+        if: runner.os == 'Linux'
         run: |
           cd artifacts
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
-            zip -r ${{ matrix.rid }}.zip ${{ matrix.rid }}
-          else
-            Compress-Archive -Path ${{ matrix.rid }}\* -DestinationPath ${{ matrix.rid }}.zip
-          fi
+          zip -r ${{ matrix.rid }}.zip ${{ matrix.rid }}
+
+      - name: Zip artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Push-Location artifacts
+          Compress-Archive -Path ${{ matrix.rid }}\* -DestinationPath ${{ matrix.rid }}.zip
+          Pop-Location
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
