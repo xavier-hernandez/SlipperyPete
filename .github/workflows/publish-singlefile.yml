@@ -1,0 +1,47 @@
+name: “Publish Single-File Binaries”
+
+# run on pushes to main or manually
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    # matrix: build on Ubuntu and Windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: windows-latest
+            rid: win-x64
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'   # or your target SDK
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Publish single-file executable
+        run: |
+          dotnet publish SlipperyPete.sln \
+            --configuration Release \
+            --runtime ${{ matrix.rid }} \
+            --self-contained true \
+            /p:PublishSingleFile=true \
+            /p:PublishTrimmed=true \
+            --output artifacts/${{ matrix.rid }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}
