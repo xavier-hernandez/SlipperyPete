@@ -41,7 +41,8 @@ jobs:
             --output artifacts/${{ matrix.rid }}
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-${{ matrix.rid }}
           path: artifacts/${{ matrix.rid }}
+
