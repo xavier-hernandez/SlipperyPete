@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  publish:
+  release:
     # matrix: build on Ubuntu and Windows
     runs-on: ${{ matrix.os }}
     strategy:
@@ -46,11 +46,18 @@ jobs:
         if: runner.os == 'Windows'
         run: Remove-Item artifacts\${{ matrix.rid }}\*.pdb -Force
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-${{ matrix.rid }}
-          path: artifacts/${{ matrix.rid }}
+      - name: Zip artifact (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd artifacts
+          zip -r ${{ matrix.rid }}.zip ${{ matrix.rid }}
+
+      - name: Zip artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Compress-Archive -Path artifacts\${{ matrix.rid }}\* `
+                            -DestinationPath artifacts\${{ matrix.rid }}.zip
 
       - name: Create GitHub Release
         id: create_release
@@ -58,20 +65,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # also explicitly pass it in:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref_name }}
+          tag_name:    ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
-          body_path: CHANGELOG.md
-          draft: false
-          prerelease: false
+          body_path:    CHANGELOG.md
+          draft:        false
+          prerelease:   false
 
-      - name: Upload Release Assets
+      # 2) Upload that single ZIP file
+      - name: Upload Release Asset (${{ matrix.rid }})
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/${{ matrix.rid }}/**
-          asset_name: '${{ matrix.rid }}-build.zip'
+          upload_url:        ${{ steps.create_release.outputs.upload_url }}
+          asset_path:        artifacts/${{ matrix.rid }}.zip
+          asset_name:        ${{ matrix.rid }}-build.zip
           asset_content_type: application/zip
