@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "SlipperyPete": {
+      "commandName": "Project",
+      "commandLineArgs": "D:\\temp\\targets.txt"
+    }
+  }
+}
