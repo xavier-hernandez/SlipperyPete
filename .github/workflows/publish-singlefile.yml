@@ -1,10 +1,15 @@
-name: “Publish Single-File Binaries”
+name: Build & Publish Release
 
-# run on pushes to main or manually
 on:
+  # only when you push a *git tag* like “v1.2.3”
   push:
-    branches: [ main ]
+    tags:
+      - 'v*'
   workflow_dispatch:
+
+# grant write access so create-release/upload-release-asset can actually do its job
+permissions:
+  contents: write
 
 jobs:
   publish:
