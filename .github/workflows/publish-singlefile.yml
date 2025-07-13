@@ -1,19 +1,16 @@
 name: Build & Publish Release
 
 on:
-  # only when you push a *git tag* like “v1.2.3”
   push:
     tags:
       - 'v*'
   workflow_dispatch:
 
-# grant write access so create-release/upload-release-asset can actually do its job
 permissions:
   contents: write
 
 jobs:
-  release:
-    # matrix: build on Ubuntu and Windows
+  build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -30,55 +27,85 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '8.0.x'   # or your target SDK
+          dotnet-version: '8.0.x'
 
       - name: Restore dependencies
         run: dotnet restore
 
       - name: Publish single-file executable
-        run: dotnet publish SlipperyPete.sln --configuration Release --runtime ${{ matrix.rid }} --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=true --output artifacts/${{ matrix.rid }}
+        run: dotnet publish SlipperyPete.sln \
+               --configuration Release \
+               --runtime ${{ matrix.rid }} \
+               --self-contained true \
+               /p:PublishSingleFile=true \
+               /p:PublishTrimmed=true \
+               --output artifacts/${{ matrix.rid }}
 
       - name: Remove PDB files
-        if: runner.os == 'Linux'
-        run: find artifacts/${{ matrix.rid }} -type f -name '*.pdb' -delete
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            find artifacts/${{ matrix.rid }} -type f -name '*.pdb' -delete
+          else
+            Remove-Item artifacts\${{ matrix.rid }}\*.pdb -Force
+          fi
 
-      - name: Remove PDB files (Windows)
-        if: runner.os == 'Windows'
-        run: Remove-Item artifacts\${{ matrix.rid }}\*.pdb -Force
-
-      - name: Zip artifact (Linux)
-        if: runner.os == 'Linux'
+      - name: Zip artifact
         run: |
           cd artifacts
-          zip -r ${{ matrix.rid }}.zip ${{ matrix.rid }}
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            zip -r ${{ matrix.rid }}.zip ${{ matrix.rid }}
+          else
+            Compress-Archive -Path ${{ matrix.rid }}\* -DestinationPath ${{ matrix.rid }}.zip
+          fi
 
-      - name: Zip artifact (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          Compress-Archive -Path artifacts\${{ matrix.rid }}\* `
-                            -DestinationPath artifacts\${{ matrix.rid }}.zip
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: linux-x64
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: win-x64
 
       - name: Create GitHub Release
         id: create_release
-        if: startsWith(github.ref, 'refs/tags/')           # ← only on tags
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name:    ${{ github.ref_name }}
+          tag_name:     ${{ github.ref_name }}
           release_name: Release ${{ github.ref_name }}
           body_path:    CHANGELOG.md
           draft:        false
           prerelease:   false
 
-      - name: Upload Release Asset
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload Linux Release Asset
         uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url:        ${{ steps.create_release.outputs.upload_url }}
-          asset_path:        'artifacts/${{ matrix.rid }}.zip'
-          asset_name:        ${{ matrix.rid }}-build.zip
+          upload_url:         ${{ steps.create_release.outputs.upload_url }}
+          asset_path:         linux-x64.zip
+          asset_name:         linux-x64.zip
+          asset_content_type: application/zip
+
+      - name: Upload Windows Release Asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url:         ${{ steps.create_release.outputs.upload_url }}
+          asset_path:         win-x64.zip
+          asset_name:         win-x64.zip
           asset_content_type: application/zip
