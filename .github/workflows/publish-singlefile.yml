@@ -36,13 +36,14 @@ jobs:
         run: |
           dotnet publish SlipperyPete.sln --configuration Release --runtime ${{ matrix.rid }} --self-contained true /p:PublishSingleFile=true /p:PublishTrimmed=true --output artifacts/${{ matrix.rid }}
 
-      - name: Remove PDB files
-        run: |
-          if [[ "${{ runner.os }}" == "Linux" ]]; then
-            find artifacts/${{ matrix.rid }} -type f -name '*.pdb' -delete
-          else
-            Remove-Item artifacts\${{ matrix.rid }}\*.pdb -Force
-          fi
+      - name: Remove PDB files (Linux)
+        if: runner.os == 'Linux'
+        run: find artifacts/${{ matrix.rid }} -type f -name '*.pdb' -delete
+
+      - name: Remove PDB files (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Remove-Item artifacts\${{ matrix.rid }}\*.pdb -Force
 
       - name: Zip artifact
         run: |
